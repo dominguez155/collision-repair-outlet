@@ -542,12 +542,43 @@
       '</div>'
     )).join('');
 
-    document.getElementById('cro-calc-rows').innerHTML = rowsHTML;
+    const rowsContainer = document.getElementById('cro-calc-rows');
+    const summaryContainer = document.getElementById('cro-calc-summary');
+
+    // Update only the calculated cells' text content in-place (preserves inputs entirely)
+    // If rowsContainer is empty, do a full render. Otherwise just update calc cells.
+    if (rowsContainer.children.length === 0) {
+      rowsContainer.innerHTML = rowsHTML;
+      bindInputs();
+    } else {
+      // In-place update: only touch .cro-calc-calc elements (calculated cells)
+      const existingRows = rowsContainer.children;
+      for (let i = 0; i < rows.length; i++) {
+        const rowEl = existingRows[i];
+        if (!rowEl) continue;
+        const cells = rowEl.querySelectorAll('.cro-calc-cell');
+        // Budget cell
+        const budgetCalc = cells[0].querySelector('.cro-calc-calc');
+        if (budgetCalc && !rows[i].b.includes('cro-calc-input-wrap')) {
+          // Extract just the text from the budget HTML
+          const tmp = document.createElement('div');
+          tmp.innerHTML = rows[i].b;
+          budgetCalc.innerHTML = tmp.querySelector('.cro-calc-calc').innerHTML;
+        }
+        // Actual cell
+        const actualCalc = cells[1].querySelector('.cro-calc-calc');
+        if (actualCalc && !rows[i].a.includes('cro-calc-input-wrap')) {
+          const tmp = document.createElement('div');
+          tmp.innerHTML = rows[i].a;
+          actualCalc.innerHTML = tmp.querySelector('.cro-calc-calc').innerHTML;
+        }
+      }
+    }
 
     const gpDelta = c.actual.gp - c.budget.gp;
     const sphDelta = c.actual.salesPerHour - c.budget.salesPerHour;
 
-    document.getElementById('cro-calc-summary').innerHTML =
+    summaryContainer.innerHTML =
       '<div class="cro-calc-card">' +
         '<div class="cro-calc-card-accent"></div>' +
         '<div class="cro-calc-card-label">Budget GP</div>' +
@@ -570,29 +601,24 @@
         '<div class="cro-calc-card-value">' + (sphDelta >= 0 ? '+' : '−') + fmtMoneyWhole(Math.abs(sphDelta)) + '</div>' +
         '<div class="cro-calc-card-sub">Budget ' + fmtMoney(c.budget.salesPerHour) + ' → Actual ' + fmtMoney(c.actual.salesPerHour) + '</div>' +
       '</div>';
+  }
 
-    // Rebind input handlers
+  function bindInputs() {
     document.querySelectorAll('.cro-calc-input').forEach(el => {
       el.addEventListener('input', (e) => {
         const key = e.target.dataset.key;
         const v = e.target.value;
         state[key] = v === '' ? 0 : parseFloat(v);
+        // Just recompute the calculated cells — DO NOT touch the input element
         render();
-        // Restore focus
-        requestAnimationFrame(() => {
-          const newEl = document.querySelector('.cro-calc-input[data-key="' + key + '"]');
-          if (newEl) {
-            newEl.focus();
-            const len = newEl.value.length;
-            try { newEl.setSelectionRange(len, len); } catch(e) {}
-          }
-        });
       });
     });
   }
 
   document.getElementById('cro-calc-reset').addEventListener('click', () => {
     state = Object.assign({}, defaults);
+    // Force a full re-render by clearing rows container first
+    document.getElementById('cro-calc-rows').innerHTML = '';
     render();
   });
 
